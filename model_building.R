@@ -83,6 +83,7 @@ for (n in 1:120){
   }
 }
 
+
 df["ratioRG"]=df["R"]/df["G"]
 df["ratioNIRG"]=df["NIR"]/df["G"]
 df["ratioSWIRG"]=df["SWIR"]/df["G"]

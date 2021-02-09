@@ -12,6 +12,7 @@ make_df_complete<-function(imagery_data,field_data){
                    WeightTop=double(),
                    WeightBottom=double(),
                    MoistureBottom=double(),
+                   MoistureLive=double(),
                    TimeSinceFlightTop=integer(),
                    TimeSinceFlightBottom=integer(),
                    GrassType=integer(),
@@ -23,12 +24,15 @@ make_df_complete<-function(imagery_data,field_data){
                    NIR=double(),
                    SWIR=double(),
                    X=integer(),
-                   Y=integer()
+                   Y=integer(),
+                   TopTransformed=double(),
   )
   
   ##turn field moisture into series of things with one entry/plot
   top_moisture=c()
+  top_transformed=c()
   bottom_moisture=c()
+  live_moisture=c()
   sample_period=c()
   X=c()
   Y=c()
@@ -48,8 +52,12 @@ make_df_complete<-function(imagery_data,field_data){
     }
     if (field_data$Sample.Type[n]==1){
       top_moisture[as.numeric(field_data[n,1])]=field_data$Fuel.Moisture[n]
+      top_transformed[as.numeric(field_data[n,1])]=log10(field_data$Fuel.Moisture[n])
       top_weight[as.numeric(field_data[n,1])]=field_data$Dry.Gross.Weight[n]-field_data$Dry.Container.Weight[n]
       top_time_collected[as.numeric(field_data[n,1])]=field_data$Time.Collected[n]
+    }
+    if (field_data$Sample.Type[n]==3){
+      live_moisture[as.numeric(field_data[n,1])]=field_data$Fuel.Moisture[n]
     }
   }
   
@@ -62,6 +70,7 @@ make_df_complete<-function(imagery_data,field_data){
       df[n,"Index"]=n
       df[n,"MoistureTop"]=top_moisture[n]
       df[n,"MoistureBottom"]=bottom_moisture[n]
+      df[n,"MoistureLive"]=live_moisture[n]
       df[n,"WeightTop"]=top_weight[n]
       df[n,"WeightBottom"]=bottom_weight[n]
       df[n,"TimeSinceFlightTop"]=top_time_collected[n]-939
