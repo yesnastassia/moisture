@@ -68,3 +68,11 @@ shapiro.test(log10(df$MoistureTop))
 
 hist(df$MoistureLive, breaks=20)
 shapiro.test(log10(df$MoistureLive))
+
+
+##check total moisture for normality -- it passes
+Total <- df %>% subset(select=c(MoistureTop,MoistureBottom,WeightTop,WeightBottom)) %>%
+                mutate(MoistureTotal=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
+shapiro.test(Total$MoistureTotal)
+
+##next make some groups

@@ -25,7 +25,7 @@ make_df_complete<-function(imagery_data,field_data){
                    SWIR=double(),
                    X=integer(),
                    Y=integer(),
-                   TopTransformed=double(),
+                   TopTransformed=double()
   )
   
   ##turn field moisture into series of things with one entry/plot
@@ -62,13 +62,17 @@ make_df_complete<-function(imagery_data,field_data){
   }
   
   
+  
+  
   ##put field moisture and corresponding imagery data in dataframe
   ##time for AM flight was 939
   ##time for PM flight was 1506
   for (n in 1:120){
+    ##fix this, this is stupid
     if (sample_period[n]==1){
       df[n,"Index"]=n
       df[n,"MoistureTop"]=top_moisture[n]
+      df[n,"TopTransformed"]=top_transformed[n]
       df[n,"MoistureBottom"]=bottom_moisture[n]
       df[n,"MoistureLive"]=live_moisture[n]
       df[n,"WeightTop"]=top_weight[n]
@@ -88,6 +92,7 @@ make_df_complete<-function(imagery_data,field_data){
     if (sample_period[n]==2){
       df[n,"Index"]=n
       df[n,"MoistureTop"]=top_moisture[n]
+      df[n,"TopTransformed"]=top_transformed[n]
       df[n,"MoistureBottom"]=bottom_moisture[n]
       df[n,"WeightTop"]=top_weight[n]
       df[n,"WeightBottom"]=bottom_weight[n]
@@ -110,5 +115,9 @@ make_df_complete<-function(imagery_data,field_data){
       df[n,"GrassType"]=2 #short
     }
   }
+  
+  
   return(df)
 }
+
+

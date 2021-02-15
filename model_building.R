@@ -6,120 +6,107 @@ field_data=read.csv("field_moisture_data.csv")
 field_data=field_data[1:294, ]
 
 #get the field data and the imagery data matched up in the same dataframe
-
 ##note! 115 actually has 1+2 types in same bag, labeled 2
     ##  54 is mixed by mistake
+##remove 54 unless using total moisture, 115 using total no matter what
+df<-make_df_complete(imagery_data,field_data)
 
-field_moisture=c()
-type=c()
-grass_type=c()
-weight=replicate(120,0)
-count=0;
-range=c(1:294)
-for (n in range){
-  if (as.numeric(field_data[n,1])<61){ #it's tall
-    if (field_data[n,"Sample.Type"]==1) { #use tops in this case
-      field_moisture[as.numeric(field_data[n,1])]=field_data[n,"Fuel.Moisture"]
-      type[as.numeric(field_data[n,1])]=field_data[n,"Sample.Period"]
-      weight[as.numeric(field_data[n,1])]=field_data[n,"Wet.Gross.Weight"]-field_data[n,"Wet.Container.Weight"]
-      grass_type[as.numeric(field_data[n,1])]=1
-    }
-  }
-  if ((as.numeric(field_data[n,1])>60)&field_data[n,"Sample.Type"]!=3){ #it's short (and not a live bag)
-    if (weight[as.numeric(field_data[n,1])]==0) { #use tops+bottoms in this case, if this is the first one
-      field_moisture[as.numeric(field_data[n,1])]=field_data[n,"Fuel.Moisture"]
-      type[as.numeric(field_data[n,1])]=field_data[n,"Sample.Period"]
-      weight[as.numeric(field_data[n,1])]=field_data[n,"Wet.Gross.Weight"]-field_data[n,"Wet.Container.Weight"]
-      grass_type[as.numeric(field_data[n,1])]=2
-    }
-    if (weight[as.numeric(field_data[n,1])]!=0) { #if a second bag exists
-      count=count+1
-      field_moisture[as.numeric(field_data[n,1])]=(weight[as.numeric(field_data[n,1])]*field_moisture[as.numeric(field_data[n,1])]+field_data[n,'Fuel.Moisture']*(field_data[n,"Wet.Gross.Weight"]-field_data[n,"Wet.Container.Weight"]))/(field_data[n,"Wet.Gross.Weight"]-field_data[n,"Wet.Container.Weight"]+weight[as.numeric(field_data[n,1])])
-    }
-  }
+df<-mutate(df,TotalMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
+
+##some don't have a top bag, and the total gets listed as NA so populate it with the bottom moisture
+df$TotalMoisture[88]=df$MoistureBottom[88]
+df$TotalMoisture[115]=df$MoistureBottom[115]
+
+##make a column for moisture that is total for short grass and top for tall grass
+df<-mutate(df,typeMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
+for (n in 1:60){
+  n
+  df[n,"typeMoisture"]=df[n,"MoistureTop"]
 }
+df$typeMoisture[54]=NA
+df$typeMoisture[88]=df$MoistureBottom[88]
+df$typeMoisture[115]=df$MoistureBottom[115]
 
-
-##then add it to a dataframe with just the imagery values from the same time of day the fields data was collected
-df <- data.frame(Index=integer(),
-                 Moisture=double(),
-                 TimeOfDay=integer(),
-                 GrassType=integer(),
-                 R=double(),
-                 G=double(),
-                 B=double(),
-                 RE=double(),
-                 NIR=double(),
-                 SWIR=double(),
-                 ratioRG=double(),
-                 ratioNIRG=double(),
-                 ratioSWIRG=double(),
-                 NDVI=double()
-                 )
-for (n in 1:120){
-  if (type[n]==1){
-    df[n,"Index"]=n
-    df[n,"Moisture"]=field_moisture[n]
-    df[n,"TimeOfDay"]=type[n]
-    df[n,"GrassType"]=grass_type[n]
-    df[n,"R"]=imagery_data[n,"AM_R_M"]
-    df[n,"G"]=imagery_data[n,"AM_G_M"]
-    df[n,"B"]=imagery_data[n,"AM_B_M"]
-    df[n,"RE"]=imagery_data[n,"AM_RE_M"]
-    df[n,"NIR"]=imagery_data[n,"AM_NIR_M"]
-    df[n,"SWIR"]=imagery_data[n,"AM_SWIR_M"]
-  }
-  if (type[n]==2){
-    df[n,"Index"]=n
-    df[n,"Moisture"]=field_moisture[n]
-    df[n,"TimeOfDay"]=type[n]
-    df[n,"GrassType"]=grass_type[n]
-    df[n,"R"]=imagery_data[n,"PM_R_M"]
-    df[n,"G"]=imagery_data[n,"PM_G_M"]
-    df[n,"B"]=imagery_data[n,"PM_B_M"]
-    df[n,"RE"]=imagery_data[n,"PM_RE_M"]
-    df[n,"NIR"]=imagery_data[n,"PM_NIR_M"]
-    df[n,"SWIR"]=imagery_data[n,"PM_SWIR_M"]
-  }
-}
-
-
-df["ratioRG"]=df["R"]/df["G"]
-df["ratioNIRG"]=df["NIR"]/df["G"]
-df["ratioSWIRG"]=df["SWIR"]/df["G"]
-df["NDVI"]=(df["NIR"]-df["R"])/(df["NIR"]+df["R"])
+##try some ratios
+df<-mutate(df,ratioRG=R/G)
+df<-mutate(df,ratioNIRG=NIR/G)
+df<-mutate(df,ratioSWIRG=SWIR/G)
+df<-mutate(df,NDVI=(NIR-R)/(NIR+R))
+df<-mutate(df,MoistureTransformed=log10(TotalMoisture))
 
 
 ##exploratory plotting
 layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
-plot(Moisture~ratioRG, data=df)
-plot(Moisture~ratioNIRG, data=df)
-plot(Moisture~ratioSWIRG, data=df)
-plot(Moisture~NDVI, data=df)
-plot(Moisture~R, data=df)
-plot(Moisture~G, data=df)
-plot(Moisture~B, data=df)
-plot(Moisture~NIR, data=df)
-plot(Moisture~SWIR, data=df)
+plot(typeMoisture~ratioRG, data=df)
+plot(typeMoisture~ratioNIRG, data=df)
+plot(typeMoisture~ratioSWIRG, data=df)
+plot(typeMoisture~NDVI, data=df)
+plot(typeMoisture~R, data=df)
+plot(typeMoisture~G, data=df)
+plot(typeMoisture~B, data=df)
+plot(typeMoisture~NIR, data=df)
+plot(typeMoisture~SWIR, data=df)
 
-layout(matrix(c(1,2,3,4),2,2))
-fit <- lm(Moisture ~ R + B + GrassType, data=df)
+##find best model
+library(MASS)
+fit <- lm(typeMoisture~ratioRG+NDVI+B+ratioNIRG+R+NIR+ratioSWIRG+G+SWIR,data=df)
+step <- stepAIC(fit, direction="both")
+step$anova
+
+
+fit <- lm(typeMoisture ~ B + ratioNIRG, data=df)
 summary(fit)
 plot(fit)
 
-df_nooutliers<-df[-c(36,54,84),]
-fitno <- lm(Moisture ~ R + B + GrassType, data=df_nooutliers)
-summary(fitno)
-plot(fitno)
 
-##fit just each type separately?
-tallfit <- lm(Moisture ~ B + TimeOfDay, data=df[1:60,])
+
+##fit just each type separately? not particularly fruitful
+
+fit <- lm(TopTransformed~ratioRG+NDVI+B+ratioNIRG+R+NIR+ratioSWIRG+G+SWIR,data=df[1:60,])
+step <- stepAIC(fit, direction="both")
+step$anova
+
+tallfit <- lm(TopTransformed ~ R + ratioNIRG, data=df[1:60,])
 summary(tallfit)
 sqplot(tallfit)
 
-shortfit <- lm(Moisture ~ B + TimeOfDay, data=df[61:120,])
+fit <- lm(TotalMoisture~ratioRG+NDVI+B+ratioNIRG+R+NIR+ratioSWIRG+G+SWIR,data=df[61:120,])
+step <- stepAIC(fit, direction="both")
+step$anova
+
+shortfit <- lm(TotalMoisture ~ NDVI + B + NIR + G, data=df[61:120,])
 summary(shortfit)
-plot(shortfit)
+sqplot(shortfit)
+
+##what if we do the two times of day separately? not particularly fruitful
+df_morning<-filter(df, SamplePeriod==1)
+df_afternoon<-filter(df, SamplePeriod==2)
+
+layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
+plot(typeMoisture~ratioRG, data=df_morning)
+plot(typeMoisture~ratioNIRG, data=df_morning)
+plot(typeMoisture~ratioSWIRG, data=df_morning)
+plot(typeMoisture~NDVI, data=df_morning)
+plot(typeMoisture~R, data=df_morning)
+plot(typeMoisture~G, data=df_morning)
+plot(typeMoisture~B, data=df_morning)
+plot(typeMoisture~NIR, data=df_morning)
+plot(typeMoisture~SWIR, data=df_morning)
+
+
+layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
+plot(typeMoisture~ratioRG, data=df_afternoon)
+plot(typeMoisture~ratioNIRG, data=df_afternoon)
+plot(typeMoisture~ratioSWIRG, data=df_afternoon)
+plot(typeMoisture~NDVI, data=df_afternoon)
+plot(typeMoisture~R, data=df_afternoon)
+plot(typeMoisture~G, data=df_afternoon)
+plot(typeMoisture~B, data=df_afternoon)
+plot(typeMoisture~NIR, data=df_afternoon)
+plot(typeMoisture~SWIR, data=df_afternoon)
+
+fit <- lm(typeMoisture ~ B+ratioSWIRG, data=df_morning)
+summary(fit)
 
 
 
