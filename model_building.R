@@ -1,7 +1,9 @@
 #under construction extremely messy file to revisit
 
+library(dplyr)
+library(ggplot2)
 #import, trim file, convert 0-255 reflectance VALUES TO 0-1
-imagery_data<-import_moist("imagery_data.csv")
+imagery_data<-import_moist("imagery_data_all.csv")
 field_data=read.csv("field_moisture_data.csv")
 field_data=field_data[1:294, ]
 
@@ -12,13 +14,16 @@ field_data=field_data[1:294, ]
 df<-make_df_complete(imagery_data,field_data)
 
 df<-mutate(df,TotalMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
+df<-mutate(df,MoistureWithLive=(MoistureTop*WeightTop+MoistureBottom*WeightBottom+MoistureLive*WeightLive)/(WeightTop+WeightBottom+WeightLive))
 
 ##some don't have a top bag, and the total gets listed as NA so populate it with the bottom moisture
 df$TotalMoisture[88]=df$MoistureBottom[88]
 df$TotalMoisture[115]=df$MoistureBottom[115]
 
 ##make a column for moisture that is total for short grass and top for tall grass
-df<-mutate(df,typeMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
+##AM I USING LIVE?
+#df<-mutate(df,typeMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
+df<-mutate(df,typeMoisture=MoistureWithLive)
 for (n in 1:60){
   n
   df[n,"typeMoisture"]=df[n,"MoistureTop"]
@@ -27,11 +32,17 @@ df$typeMoisture[54]=NA
 df$typeMoisture[88]=df$MoistureBottom[88]
 df$typeMoisture[115]=df$MoistureBottom[115]
 
-##try some ratios
+##try some ratios- different sets if using median or mean
 df<-mutate(df,ratioRG=R/G)
 df<-mutate(df,ratioNIRG=NIR/G)
 df<-mutate(df,ratioSWIRG=SWIR/G)
 df<-mutate(df,NDVI=(NIR-R)/(NIR+R))
+df<-mutate(df,VARI=(G-R)/(G+R-B))
+df<-mutate(df,ratioRG_r=R_r/G_r)
+df<-mutate(df,ratioNIRG_r=NIR_r/G_r)
+df<-mutate(df,ratioSWIRG_r=SWIR_r/G_r)
+df<-mutate(df,NDVI_r=(NIR_r-R_r)/(NIR_r+R_r))
+df<-mutate(df,VARI_r=(G_r-R_r)/(G_r+R_r-B_r))
 df<-mutate(df,MoistureTransformed=log10(TotalMoisture))
 
 
@@ -39,7 +50,7 @@ df<-mutate(df,MoistureTransformed=log10(TotalMoisture))
 layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
 plot(typeMoisture~ratioRG, data=df)
 plot(typeMoisture~ratioNIRG, data=df)
-plot(typeMoisture~ratioSWIRG, data=df)
+plot(typeMoisture~VARI, data=df)
 plot(typeMoisture~NDVI, data=df)
 plot(typeMoisture~R, data=df)
 plot(typeMoisture~G, data=df)
@@ -49,12 +60,12 @@ plot(typeMoisture~SWIR, data=df)
 
 ##find best model
 library(MASS)
-fit <- lm(typeMoisture~ratioRG+NDVI+B+ratioNIRG+R+NIR+ratioSWIRG+G+SWIR,data=df)
+fit <- lm(typeMoisture~ratioRG_r+NDVI_r+B_r+ratioNIRG_r+R_r+NIR_r+VARI_r+G_r+SWIR_r+TimeSinceFlightTop,data=df)
 step <- stepAIC(fit, direction="both")
 step$anova
 
 
-fit <- lm(typeMoisture ~ B + ratioNIRG, data=df)
+fit <- lm(typeMoisture ~  VARI_r+NDVI_r, data=df)
 summary(fit)
 plot(fit)
 
@@ -79,34 +90,34 @@ summary(shortfit)
 sqplot(shortfit)
 
 ##what if we do the two times of day separately? not particularly fruitful
-df_morning<-filter(df, SamplePeriod==1)
-df_afternoon<-filter(df, SamplePeriod==2)
-
-layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
-plot(typeMoisture~ratioRG, data=df_morning)
-plot(typeMoisture~ratioNIRG, data=df_morning)
-plot(typeMoisture~ratioSWIRG, data=df_morning)
-plot(typeMoisture~NDVI, data=df_morning)
-plot(typeMoisture~R, data=df_morning)
-plot(typeMoisture~G, data=df_morning)
-plot(typeMoisture~B, data=df_morning)
-plot(typeMoisture~NIR, data=df_morning)
-plot(typeMoisture~SWIR, data=df_morning)
-
-
-layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
-plot(typeMoisture~ratioRG, data=df_afternoon)
-plot(typeMoisture~ratioNIRG, data=df_afternoon)
-plot(typeMoisture~ratioSWIRG, data=df_afternoon)
-plot(typeMoisture~NDVI, data=df_afternoon)
-plot(typeMoisture~R, data=df_afternoon)
-plot(typeMoisture~G, data=df_afternoon)
-plot(typeMoisture~B, data=df_afternoon)
-plot(typeMoisture~NIR, data=df_afternoon)
-plot(typeMoisture~SWIR, data=df_afternoon)
-
-fit <- lm(typeMoisture ~ B+ratioSWIRG, data=df_morning)
-summary(fit)
+# df_morning<-filter(df, SamplePeriod==1)
+# df_afternoon<-filter(df, SamplePeriod==2)
+# 
+# layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
+# plot(typeMoisture~ratioRG, data=df_morning)
+# plot(typeMoisture~ratioNIRG, data=df_morning)
+# plot(typeMoisture~ratioSWIRG, data=df_morning)
+# plot(typeMoisture~NDVI, data=df_morning)
+# plot(typeMoisture~R, data=df_morning)
+# plot(typeMoisture~G, data=df_morning)
+# plot(typeMoisture~B, data=df_morning)
+# plot(typeMoisture~NIR, data=df_morning)
+# plot(typeMoisture~SWIR, data=df_morning)
+# 
+# 
+# layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
+# plot(typeMoisture~ratioRG, data=df_afternoon)
+# plot(typeMoisture~ratioNIRG, data=df_afternoon)
+# plot(typeMoisture~ratioSWIRG, data=df_afternoon)
+# plot(typeMoisture~NDVI, data=df_afternoon)
+# plot(typeMoisture~R, data=df_afternoon)
+# plot(typeMoisture~G, data=df_afternoon)
+# plot(typeMoisture~B, data=df_afternoon)
+# plot(typeMoisture~NIR, data=df_afternoon)
+# plot(typeMoisture~SWIR, data=df_afternoon)
+# 
+# fit <- lm(typeMoisture ~ B+ratioSWIRG, data=df_morning)
+# summary(fit)
 
 
 
