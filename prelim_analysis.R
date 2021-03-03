@@ -2,13 +2,14 @@ library(vegan)
 library(dplyr)
 
 field_data=read.csv("field_moisture_data.csv")
-imagery_data=import_moist("imagery_data.csv")
+imagery_data=import_moist("imagery_data_all.csv")
+texture_data=read.csv("Texture Calculation/texture_vals.csv")
 field_data=field_data[1:294, ]
 
 ##formatting:
 ##put them into the same data frame and match up AM/PM data with correct sample
 ##period, make only one row for each plot
-df<-make_df_complete(imagery_data,field_data)
+df<-make_df_complete(imagery_data,field_data,texture_data)
 
 
 ##a little look at variation in moisture
@@ -54,7 +55,7 @@ distxy<-dist(df[,c("X","Y")], method = "euclidean")
 distmoist<-dist(df[,c("MoistureTop","MoistureBottom","MoistureLive")], method = "euclidean")
 
 ##check for spatial effects- r=.01 so no
-mantel(xdis=distxy, ydis=distmoist, method="pearson", permutations=99999, na.rm=TRUE)
+mantel(ydis=distxy, xdis=distmoist, method="pearson", permutations=99999, na.rm=TRUE)
 
 ##check for normality, both top and live moisture fail this test
 shapiro.test(df$MoistureBottom)
@@ -75,4 +76,20 @@ Total <- df %>% subset(select=c(MoistureTop,MoistureBottom,WeightTop,WeightBotto
                 mutate(MoistureTotal=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
 shapiro.test(Total$MoistureTotal)
 
-##next make some groups
+##next PCA
+df_wavelengths<-subset(df, select=c(R,G,B,RE,NIR))
+scaled_wavelengths <-scale(df_wavelengths)
+PCA<-princomp(scaled_wavelengths, cor = FALSE, scores = TRUE)
+layout(matrix(1))
+plot(PCA)
+biplot(PCA)
+PCA_coeff=PCA$loadings[,1:4]
+
+
+##PCA again, with SWIR
+df_wavelengths_SWIR<- df %>% subset(select=c(R,G,B,RE,NIR,SWIR)) %>%
+                        filter(SWIR>0)
+scaled_wavelengths_SWIR <-scale(df_wavelengths_SWIR)
+PCA_swir<-princomp(scaled_wavelengths_SWIR, cor = FALSE, scores = TRUE)
+PCA_coeff_swir=PCA_swir$loadings[,1:4]
+

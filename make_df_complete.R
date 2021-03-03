@@ -1,4 +1,4 @@
-make_df_complete<-function(imagery_data,field_data){
+make_df_complete<-function(imagery_data,field_data,texture_data){
   ##need to make a df with the top, bottom, and live moisture and weight for each
   ##plot as well as the relevant imagery information, calculate time since flight,
   ##also location
@@ -34,7 +34,9 @@ make_df_complete<-function(imagery_data,field_data){
                    X=integer(),
                    Y=integer(),
                    TopTransformed=double(),
-                   WeightLive=double()
+                   WeightLive=double(),
+                   Texture=double(),
+                   Texture_r=double()
   )
   
   ##turn field moisture into series of things with one entry/plot
@@ -62,7 +64,7 @@ make_df_complete<-function(imagery_data,field_data){
     }
     if (field_data$Sample.Type[n]==1){
       top_moisture[as.numeric(field_data[n,1])]=field_data$Fuel.Moisture[n]
-      top_transformed[as.numeric(field_data[n,1])]=log10(field_data$Fuel.Moisture[n])
+      top_transformed[as.numeric(field_data[n,1])]=sqrt(field_data$Fuel.Moisture[n])
       top_weight[as.numeric(field_data[n,1])]=field_data$Dry.Gross.Weight[n]-field_data$Dry.Container.Weight[n]
       top_time_collected[as.numeric(field_data[n,1])]=field_data$Time.Collected[n]
     }
@@ -99,13 +101,21 @@ make_df_complete<-function(imagery_data,field_data){
       df[n,"RE"]=imagery_data[n,"AM_RE_M"]
       df[n,"NIR"]=imagery_data[n,"AM_NIR_M"]
       df[n,"SWIR"]=imagery_data[n,"AM_SWIR_M"]
+      df[n,"R_SD"]=imagery_data[n,"AM_R_SD"]
+      df[n,"G_SD"]=imagery_data[n,"AM_G_SD"]
+      df[n,"B_SD"]=imagery_data[n,"AM_B_SD"]
+      df[n,"RE_SD"]=imagery_data[n,"AM_RE_SD"]
+      df[n,"NIR_SD"]=imagery_data[n,"AM_NIR_SD"]
+      df[n,"SWIR_SD"]=imagery_data[n,"AM_SWIR_SD"]
+      df[n,"Texture"]=texture_data[n,"texture_AM"]
       
-      df[n,"R_r"]=imagery_data[n,"AM_R_MED"]
-      df[n,"G_r"]=imagery_data[n,"AM_G_MED"]
-      df[n,"B_r"]=imagery_data[n,"AM_B_MED"]
-      df[n,"RE_r"]=imagery_data[n,"AM_RE_MED"]
-      df[n,"NIR_r"]=imagery_data[n,"AM_NIR_MED"]
-      df[n,"SWIR_r"]=imagery_data[n,"AM_SWIR_MED"]
+      ##could try using medians, not a big change
+      # df[n,"R_m"]=imagery_data[n,"AM_R_MED"]
+      # df[n,"G_m"]=imagery_data[n,"AM_G_MED"]
+      # df[n,"B_m"]=imagery_data[n,"AM_B_MED"]
+      # df[n,"RE_m"]=imagery_data[n,"AM_RE_MED"]
+      # df[n,"NIR_m"]=imagery_data[n,"AM_NIR_MED"]
+      # df[n,"SWIR_m"]=imagery_data[n,"AM_SWIR_MED"]
       
     }
     if (sample_period[n]==2){
@@ -117,13 +127,20 @@ make_df_complete<-function(imagery_data,field_data){
       df[n,"RE"]=imagery_data[n,"PM_RE_M"]
       df[n,"NIR"]=imagery_data[n,"PM_NIR_M"]
       df[n,"SWIR"]=imagery_data[n,"PM_SWIR_M"]
+      df[n,"R_SD"]=imagery_data[n,"PM_R_SD"]
+      df[n,"G_SD"]=imagery_data[n,"PM_G_SD"]
+      df[n,"B_SD"]=imagery_data[n,"PM_B_SD"]
+      df[n,"RE_SD"]=imagery_data[n,"PM_RE_SD"]
+      df[n,"NIR_SD"]=imagery_data[n,"PM_NIR_SD"]
+      df[n,"SWIR_SD"]=imagery_data[n,"PM_SWIR_SD"]
+      df[n,"Texture"]=texture_data[n,"texture_PM"]
       
-      df[n,"R_r"]=imagery_data[n,"AM_R_MED"]
-      df[n,"G_r"]=imagery_data[n,"AM_G_MED"]
-      df[n,"B_r"]=imagery_data[n,"AM_B_MED"]
-      df[n,"RE_r"]=imagery_data[n,"AM_RE_MED"]
-      df[n,"NIR_r"]=imagery_data[n,"AM_NIR_MED"]
-      df[n,"SWIR_r"]=imagery_data[n,"AM_SWIR_MED"]
+      # df[n,"R_m"]=imagery_data[n,"AM_R_MED"]
+      # df[n,"G_m"]=imagery_data[n,"AM_G_MED"]
+      # df[n,"B_m"]=imagery_data[n,"AM_B_MED"]
+      # df[n,"RE_m"]=imagery_data[n,"AM_RE_MED"]
+      # df[n,"NIR_m"]=imagery_data[n,"AM_NIR_MED"]
+      # df[n,"SWIR_m"]=imagery_data[n,"AM_SWIR_MED"]
     }
     if (n<61){
       df[n,"GrassType"]=1 #tall
@@ -133,8 +150,9 @@ make_df_complete<-function(imagery_data,field_data){
     }
   }
   
-  ##one option for alternative reflectances is to transform them, not very fruitful
-  ##uncomment this line
+  ##one option for alternative reflectances is to transform them, need to scale for PCA
+  df[17:22] <-scale(df[,11:16])
+  df[28] <-scale(df[,27])
   ##df[,17:22]<-decostand(x=df[,16:21], method="total", MARGIN=2, na.rm = FALSE)
   ##df[,26:31]<-decostand(x=df[,17:22], method="total", MARGIN=2, na.rm = TRUE)
   

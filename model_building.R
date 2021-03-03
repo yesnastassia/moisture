@@ -6,12 +6,13 @@ library(ggplot2)
 imagery_data<-import_moist("imagery_data_all.csv")
 field_data=read.csv("field_moisture_data.csv")
 field_data=field_data[1:294, ]
+texture_data=read.csv("Texture Calculation/texture_vals.csv")
 
 #get the field data and the imagery data matched up in the same dataframe
 ##note! 115 actually has 1+2 types in same bag, labeled 2
     ##  54 is mixed by mistake
 ##remove 54 unless using total moisture, 115 using total no matter what
-df<-make_df_complete(imagery_data,field_data)
+df<-make_df_complete(imagery_data,field_data,texture_data)
 
 df<-mutate(df,TotalMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
 df<-mutate(df,MoistureWithLive=(MoistureTop*WeightTop+MoistureBottom*WeightBottom+MoistureLive*WeightLive)/(WeightTop+WeightBottom+WeightLive))
@@ -25,8 +26,8 @@ df$TotalMoisture[115]=df$MoistureBottom[115]
 #df<-mutate(df,typeMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
 df<-mutate(df,typeMoisture=MoistureWithLive)
 for (n in 1:60){
-  n
   df[n,"typeMoisture"]=df[n,"MoistureTop"]
+  #df[n,"typeMoisture"]=df[n,"MoistureTop"]*df[n,"WeightTop"]+df[n,"MoistureLive"]*df[n,"WeightLive"]
 }
 df$typeMoisture[54]=NA
 df$typeMoisture[88]=df$MoistureBottom[88]
@@ -60,16 +61,38 @@ plot(typeMoisture~SWIR, data=df)
 
 ##find best model
 library(MASS)
-fit <- lm(typeMoisture~ratioRG_r+NDVI_r+B_r+ratioNIRG_r+R_r+NIR_r+VARI_r+G_r+SWIR_r+TimeSinceFlightTop,data=df)
+fit <- lm(MoistureTransformed~ratioRG_r+NDVI_r+B_r+ratioNIRG_r+R_r+NIR_r+VARI_r+G_r+SWIR_r+TimeSinceFlightTop,data=df)
 step <- stepAIC(fit, direction="both")
-step$anova
 
 
-fit <- lm(typeMoisture ~  VARI_r+NDVI_r, data=df)
+fit <- lm(MoistureTransformed ~  VARI_r+NDVI_r, data=df)
 summary(fit)
 plot(fit)
 
+##try vars from PCA
+##make sure to use standardized values
+df<-mutate(df,PC1=PCA_coeff[1,1]*R_r+PCA_coeff[2,1]*G_r+PCA_coeff[3,1]*B_r+PCA_coeff[4,1]*RE_r+PCA_coeff[5,1]*NIR_r)
+df<-mutate(df,PC2=PCA_coeff[1,2]*R_r+PCA_coeff[2,2]*G_r+PCA_coeff[3,2]*B_r+PCA_coeff[4,2]*RE_r+PCA_coeff[5,2]*NIR_r)
+df<-mutate(df,PC3=PCA_coeff[1,3]*R_r+PCA_coeff[2,3]*G_r+PCA_coeff[3,3]*B_r+PCA_coeff[4,3]*RE_r+PCA_coeff[5,3]*NIR_r)
+df<-mutate(df,PC4=PCA_coeff[1,4]*R_r+PCA_coeff[2,4]*G_r+PCA_coeff[3,4]*B_r+PCA_coeff[4,4]*RE_r+PCA_coeff[5,4]*NIR_r)
 
+fit_PCA<-lm(typeMoisture~PC1+PC2+PC3+ GrassType + TimeSinceFlightTop, data=df)
+summary(fit_PCA)
+##PCA also with standard deviations didn't really do anything
+
+
+##try PCA including SWIR
+##first get rid of null value plots
+df_SWIR<- df %>% subset(select=c(R_r,G_r,B_r,RE_r,NIR_r,SWIR_r,TimeSinceFlightTop,typeMoisture,GrassType)) %>%
+  filter(abs(SWIR_r)>0)
+df_SWIR<-mutate(df_SWIR,PC1=PCA_coeff_swir[1,1]*R_r+PCA_coeff_swir[2,1]*G_r+PCA_coeff_swir[3,1]*B_r+PCA_coeff_swir[4,1]*RE_r+PCA_coeff_swir[5,1]*NIR_r+PCA_coeff_swir[6,1]*SWIR_r)
+df_SWIR<-mutate(df_SWIR,PC2=PCA_coeff_swir[1,2]*R_r+PCA_coeff_swir[2,2]*G_r+PCA_coeff_swir[3,2]*B_r+PCA_coeff_swir[4,2]*RE_r+PCA_coeff_swir[5,2]*NIR_r+PCA_coeff_swir[6,2]*SWIR_r)
+df_SWIR<-mutate(df_SWIR,PC3=PCA_coeff_swir[1,3]*R_r+PCA_coeff_swir[2,3]*G_r+PCA_coeff_swir[3,3]*B_r+PCA_coeff_swir[4,3]*RE_r+PCA_coeff_swir[5,3]*NIR_r+PCA_coeff_swir[6,3]*SWIR_r)
+df_SWIR<-mutate(df_SWIR,PC4=PCA_coeff_swir[1,4]*R_r+PCA_coeff_swir[2,4]*G_r+PCA_coeff_swir[3,4]*B_r+PCA_coeff_swir[4,4]*RE_r+PCA_coeff_swir[5,4]*NIR_r+PCA_coeff_swir[6,4]*SWIR_r)
+
+
+fit_PCA_swir<-lm(typeMoisture~PC1 +PC2 + PC3 + GrassType + TimeSinceFlightTop, data=df_SWIR)
+summary(fit_PCA_swir)
 
 ##fit just each type separately? not particularly fruitful
 
