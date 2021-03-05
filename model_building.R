@@ -1,73 +1,163 @@
-#under construction extremely messy file to revisit
-
 library(dplyr)
 library(ggplot2)
-#import, trim file, convert 0-255 reflectance VALUES TO 0-1
+##import
+##note: plot 54 collected incorrectly
+##plot 115 is total moisture and not separate, should not affect analysis
 imagery_data<-import_moist("imagery_data_all.csv")
 field_data=read.csv("field_moisture_data.csv")
 field_data=field_data[1:294, ]
 texture_data=read.csv("Texture Calculation/texture_vals.csv")
 
 #get the field data and the imagery data matched up in the same dataframe
-##note! 115 actually has 1+2 types in same bag, labeled 2
-    ##  54 is mixed by mistake
-##remove 54 unless using total moisture, 115 using total no matter what
 df<-make_df_complete(imagery_data,field_data,texture_data)
 
-df<-mutate(df,TotalMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
-df<-mutate(df,MoistureWithLive=(MoistureTop*WeightTop+MoistureBottom*WeightBottom+MoistureLive*WeightLive)/(WeightTop+WeightBottom+WeightLive))
 
-##some don't have a top bag, and the total gets listed as NA so populate it with the bottom moisture
-df$TotalMoisture[88]=df$MoistureBottom[88]
-df$TotalMoisture[115]=df$MoistureBottom[115]
+##check for spatial autocorrelation
+##calculate distance matrices for field moisture and x,y coordinates
+distxy<-dist(df[,c("X","Y")], method = "euclidean")
+distmoist<-dist(df[,c("MoistureTop","MoistureBottom","MoistureLive")], method = "euclidean")
+
+mantel(ydis=distxy, xdis=distmoist, method="pearson", permutations=99999, na.rm=TRUE)
+
+
+
+##absent top or live bags cause a problem with NA values when calculating totals
+##this needs to be done after any actual use of the separate moistures!!
+df<-mutate(df, MoistureLiveNoZeroes = case_when(
+          is.na(MoistureLive) == TRUE ~ 0,
+          is.na(MoistureLive) == FALSE ~ MoistureLive
+          )
+  )
+df<-mutate(df, WeightLiveNoZeroes = case_when(
+          is.na(WeightLive) == TRUE ~ 0,
+          is.na(WeightLive) == FALSE ~ WeightLive
+          )
+)
+df<-mutate(df, MoistureTopNoZeroes = case_when(
+          is.na(MoistureTop) == TRUE ~ 0,
+          is.na(MoistureTop) == FALSE ~ MoistureTop
+          )
+)
+df<-mutate(df, WeightTopNoZeroes = case_when(
+          is.na(WeightTop) == TRUE ~ 0,
+          is.na(WeightTop) == FALSE ~ WeightTop
+          )
+)
+
+
+##calculate total moisture
+df<-mutate(df,TotalMoisture=(MoistureTopNoZeroes*WeightTopNoZeroes+MoistureBottom*WeightBottom+MoistureLiveNoZeroes*WeightLiveNoZeroes)/(WeightTopNoZeroes+WeightBottom+WeightLiveNoZeroes))
+
 
 ##make a column for moisture that is total for short grass and top for tall grass
-##AM I USING LIVE?
-#df<-mutate(df,typeMoisture=(MoistureTop*WeightTop+MoistureBottom*WeightBottom)/(WeightTop+WeightBottom))
-df<-mutate(df,typeMoisture=MoistureWithLive)
+df<-mutate(df,typeMoisture=TotalMoisture)
 for (n in 1:60){
   df[n,"typeMoisture"]=df[n,"MoistureTop"]
   #df[n,"typeMoisture"]=df[n,"MoistureTop"]*df[n,"WeightTop"]+df[n,"MoistureLive"]*df[n,"WeightLive"]
 }
-df$typeMoisture[54]=NA
-df$typeMoisture[88]=df$MoistureBottom[88]
-df$typeMoisture[115]=df$MoistureBottom[115]
 
-##try some ratios- different sets if using median or mean
-df<-mutate(df,ratioRG=R/G)
-df<-mutate(df,ratioNIRG=NIR/G)
-df<-mutate(df,ratioSWIRG=SWIR/G)
+##remove bad data
+df$typeMoisture[54]=NA
+
+
+##try some ratios
+df<-mutate(df,NDWI=(NIR-SWIR)/(NIR+SWIR))
 df<-mutate(df,NDVI=(NIR-R)/(NIR+R))
 df<-mutate(df,VARI=(G-R)/(G+R-B))
-df<-mutate(df,ratioRG_r=R_r/G_r)
-df<-mutate(df,ratioNIRG_r=NIR_r/G_r)
-df<-mutate(df,ratioSWIRG_r=SWIR_r/G_r)
-df<-mutate(df,NDVI_r=(NIR_r-R_r)/(NIR_r+R_r))
-df<-mutate(df,VARI_r=(G_r-R_r)/(G_r+R_r-B_r))
 df<-mutate(df,MoistureTransformed=log10(TotalMoisture))
+
+
+##some plots of moisture distribution
+##a little look at variation in moisture
+morning <- df %>% subset(SamplePeriod==1)
+afternoon <- df %>% subset(SamplePeriod==2)
+
+                          
+##plot total moisture by sample period
+layout(matrix(c(1),1,1))
+transparentBlue <- rgb(0, 0, 255, max = 255, alpha = 125, names = "blue50")
+transparentRed <- rgb(255, 0, 0, max = 255, alpha = 125, names = "blue50")
+hist1<-hist(morning$TotalMoisture,breaks=20)
+hist2<-hist(afternoon$TotalMoisture, breaks=30)
+plot(hist2,col=transparentRed)
+plot(hist1,col=transparentBlue,add=TRUE)
+
+
+tall <- df %>% subset(GrassType==1)
+short <- df %>% subset(GrassType==2)
+
+##plot total moisture by grass type
+layout(matrix(c(1),1,1))
+hist1<-hist(tall$TotalMoisture,breaks=30)
+hist2<-hist(short$TotalMoisture, breaks=30)
+plot(hist2,col=transparentRed, xlim=c(.08,.85))
+plot(hist1,col=transparentBlue,add=TRUE)
+
+
+##plot top for tall versus total for tall
+layout(matrix(c(1),1,1))
+hist1<-hist(tall$TotalMoisture,breaks=30)
+hist2<-hist(tall$MoistureTop, breaks=20)
+plot(hist2,col=transparentRed, xlim=c(.08,.85))
+plot(hist1,col=transparentBlue,add=TRUE)
 
 
 ##exploratory plotting
 layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
-plot(typeMoisture~ratioRG, data=df)
-plot(typeMoisture~ratioNIRG, data=df)
-plot(typeMoisture~VARI, data=df)
-plot(typeMoisture~NDVI, data=df)
-plot(typeMoisture~R, data=df)
-plot(typeMoisture~G, data=df)
-plot(typeMoisture~B, data=df)
-plot(typeMoisture~NIR, data=df)
-plot(typeMoisture~SWIR, data=df)
-
-##find best model
-library(MASS)
-fit <- lm(MoistureTransformed~ratioRG_r+NDVI_r+B_r+ratioNIRG_r+R_r+NIR_r+VARI_r+G_r+SWIR_r+TimeSinceFlightTop,data=df)
-step <- stepAIC(fit, direction="both")
+plot(TotalMoisture~NDWI, data=df)
+plot(TotalMoisture~VARI, data=df)
+plot(TotalMoisture~NDVI, data=df)
+plot(TotalMoisture~R, data=df)
+plot(TotalMoisture~G, data=df)
+plot(TotalMoisture~B, data=df)
+plot(TotalMoisture~NIR, data=df)
+plot(TotalMoisture~SWIR, data=df)
 
 
-fit <- lm(MoistureTransformed ~  VARI_r+NDVI_r, data=df)
+##check for outliers >3SD in reflectance data
+
+
+##check for normality
+shapiro.test(df$typeMoisture)
+df<-mutate(df,typeMoisture_transformed=log10(df$typeMoisture))
+
+shapiro.test(df$TotalMoisture)
+df<-mutate(df,totalMoisture_transformed=log10(df$TotalMoisture))
+shapiro.test(df$totalMoisture_transformed)
+
+##modeling with indices
+fit <- lm(totalMoisture_transformed ~  VARI+NDVI+GrassType, data=df)
 summary(fit)
 plot(fit)
+
+
+##collinearity of predictors
+cor_matrix <- cor(df[11:16])
+
+
+##next try PCA
+df_wavelengths<-subset(df, select=c(R,G,B,RE,NIR))
+scaled_wavelengths <-scale(df_wavelengths)
+PCA<-princomp(scaled_wavelengths, cor = FALSE, scores = TRUE)
+layout(matrix(1))
+plot(PCA)
+biplot(PCA)
+PCA_coeff=PCA$loadings[,1:4]
+
+##PCA again, with SWIR
+df_wavelengths_SWIR<- df %>% subset(select=c(R,G,B,RE,NIR,SWIR)) %>%
+  filter(SWIR>0)
+scaled_wavelengths_SWIR <-scale(df_wavelengths_SWIR)
+PCA_swir<-princomp(scaled_wavelengths_SWIR, cor = FALSE, scores = TRUE)
+PCA_coeff_swir=PCA_swir$loadings[,1:4]
+
+
+##classification tree
+library(mvpart)
+df<-mutate(df,GrassType=as.factor(GrassType))
+tree<-mvpart(GrassType~R+G+B+RE+NIR+SWIR, df, method="class", xv="pick", xvmult=100)
+##could be summarized as "tall if B<.1627 or (G>=.2137 and B<.1784)"
+
 
 ##try vars from PCA
 ##make sure to use standardized values
@@ -75,110 +165,38 @@ df<-mutate(df,PC1=PCA_coeff[1,1]*R_r+PCA_coeff[2,1]*G_r+PCA_coeff[3,1]*B_r+PCA_c
 df<-mutate(df,PC2=PCA_coeff[1,2]*R_r+PCA_coeff[2,2]*G_r+PCA_coeff[3,2]*B_r+PCA_coeff[4,2]*RE_r+PCA_coeff[5,2]*NIR_r)
 df<-mutate(df,PC3=PCA_coeff[1,3]*R_r+PCA_coeff[2,3]*G_r+PCA_coeff[3,3]*B_r+PCA_coeff[4,3]*RE_r+PCA_coeff[5,3]*NIR_r)
 df<-mutate(df,PC4=PCA_coeff[1,4]*R_r+PCA_coeff[2,4]*G_r+PCA_coeff[3,4]*B_r+PCA_coeff[4,4]*RE_r+PCA_coeff[5,4]*NIR_r)
+shapiro.test(df$PC1)
+shapiro.test(df$PC3)
 
-fit_PCA<-lm(typeMoisture~PC1+PC2+PC3+ GrassType + TimeSinceFlightTop, data=df)
+
+fit_PCA<-lm(totalMoisture_transformed~PC1+PC2, data=df)
 summary(fit_PCA)
-##PCA also with standard deviations didn't really do anything
+
 
 
 ##try PCA including SWIR
 ##first get rid of null value plots
-df_SWIR<- df %>% subset(select=c(R_r,G_r,B_r,RE_r,NIR_r,SWIR_r,TimeSinceFlightTop,typeMoisture,GrassType)) %>%
+##not as good
+df_SWIR<- df %>% subset(select=c(R,G,B,RE,NIR,SWIR)) %>%
   filter(abs(SWIR_r)>0)
-df_SWIR<-mutate(df_SWIR,PC1=PCA_coeff_swir[1,1]*R_r+PCA_coeff_swir[2,1]*G_r+PCA_coeff_swir[3,1]*B_r+PCA_coeff_swir[4,1]*RE_r+PCA_coeff_swir[5,1]*NIR_r+PCA_coeff_swir[6,1]*SWIR_r)
-df_SWIR<-mutate(df_SWIR,PC2=PCA_coeff_swir[1,2]*R_r+PCA_coeff_swir[2,2]*G_r+PCA_coeff_swir[3,2]*B_r+PCA_coeff_swir[4,2]*RE_r+PCA_coeff_swir[5,2]*NIR_r+PCA_coeff_swir[6,2]*SWIR_r)
-df_SWIR<-mutate(df_SWIR,PC3=PCA_coeff_swir[1,3]*R_r+PCA_coeff_swir[2,3]*G_r+PCA_coeff_swir[3,3]*B_r+PCA_coeff_swir[4,3]*RE_r+PCA_coeff_swir[5,3]*NIR_r+PCA_coeff_swir[6,3]*SWIR_r)
-df_SWIR<-mutate(df_SWIR,PC4=PCA_coeff_swir[1,4]*R_r+PCA_coeff_swir[2,4]*G_r+PCA_coeff_swir[3,4]*B_r+PCA_coeff_swir[4,4]*RE_r+PCA_coeff_swir[5,4]*NIR_r+PCA_coeff_swir[6,4]*SWIR_r)
+cor(df_SWIR)
 
 
-fit_PCA_swir<-lm(typeMoisture~PC1 +PC2 + PC3 + GrassType + TimeSinceFlightTop, data=df_SWIR)
-summary(fit_PCA_swir)
-
-##fit just each type separately? not particularly fruitful
-
-fit <- lm(TopTransformed~ratioRG+NDVI+B+ratioNIRG+R+NIR+ratioSWIRG+G+SWIR,data=df[1:60,])
-step <- stepAIC(fit, direction="both")
-step$anova
-
-tallfit <- lm(TopTransformed ~ R + ratioNIRG, data=df[1:60,])
+##fit just each type separately? why is the top so bad??
+tallfit <- lm(totalMoisture_transformed~PC1+PC2, data=df[1:60,])
 summary(tallfit)
-sqplot(tallfit)
 
-fit <- lm(TotalMoisture~ratioRG+NDVI+B+ratioNIRG+R+NIR+ratioSWIRG+G+SWIR,data=df[61:120,])
-step <- stepAIC(fit, direction="both")
-step$anova
 
-shortfit <- lm(TotalMoisture ~ NDVI + B + NIR + G, data=df[61:120,])
+shortfit <- lm(totalMoisture_transformed~PC1+PC2,data=df[61:120,])
 summary(shortfit)
-sqplot(shortfit)
-
-##what if we do the two times of day separately? not particularly fruitful
-# df_morning<-filter(df, SamplePeriod==1)
-# df_afternoon<-filter(df, SamplePeriod==2)
-# 
-# layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
-# plot(typeMoisture~ratioRG, data=df_morning)
-# plot(typeMoisture~ratioNIRG, data=df_morning)
-# plot(typeMoisture~ratioSWIRG, data=df_morning)
-# plot(typeMoisture~NDVI, data=df_morning)
-# plot(typeMoisture~R, data=df_morning)
-# plot(typeMoisture~G, data=df_morning)
-# plot(typeMoisture~B, data=df_morning)
-# plot(typeMoisture~NIR, data=df_morning)
-# plot(typeMoisture~SWIR, data=df_morning)
-# 
-# 
-# layout(matrix(c(1,2,3,4,5,6,7,8,9),3,3))
-# plot(typeMoisture~ratioRG, data=df_afternoon)
-# plot(typeMoisture~ratioNIRG, data=df_afternoon)
-# plot(typeMoisture~ratioSWIRG, data=df_afternoon)
-# plot(typeMoisture~NDVI, data=df_afternoon)
-# plot(typeMoisture~R, data=df_afternoon)
-# plot(typeMoisture~G, data=df_afternoon)
-# plot(typeMoisture~B, data=df_afternoon)
-# plot(typeMoisture~NIR, data=df_afternoon)
-# plot(typeMoisture~SWIR, data=df_afternoon)
-# 
-# fit <- lm(typeMoisture ~ B+ratioSWIRG, data=df_morning)
-# summary(fit)
 
 
 
-# ##decision trees? experiment
-# library(rpart)
-# fit1=rpart(Moisture~R+G+RE+NIR+SWIR+TimeOfDay, data=df, method="anova") 
-# printcp(fit1) # display the resultsin
-# plotcp(fit1) # visualize cross-validation results
-# summary(fit1) # detailed summary of splits
-# 
-# # plot tree
-# plot(fit1, uniform=TRUE,
-#      main="Classification Tree for Moisture")
-# text(fit1, use.n=TRUE, all=TRUE, cex=.8)
-# 
-# ##other library
-# library(randomForest)
-# n1=c(1,3,17,22,34,40,61,67,88,91,92,110)
-# n2=c(2,4,5,6,7,8,9,10,11,12,13,14,15,16,18,19,20,21,23,24,25,26,27,28,29,30,31,32,33,35,36,37,38,39,41,42,43,44,45,
-#      46,47,48,49,50,51,52,53,54,55,56,57,68,59,60,62,63,64,65,66,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,
-#      85,86,87,89,90,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,111,112,113,114,115,116,117,118,119,120)
-# df1=df[n1, ]
-# df2=df[n2, ]
-# 
-# fit2 <- randomForest(
-#   Moisture ~ R+G+RE+NIR+TimeOfDay,
-#   data=df2
-# )
-# 
-# mtry <- tuneRF(df2[4:9],df2$Moisture, ntreeTry=500,
-#                stepFactor=1.5,improve=0.01, trace=TRUE, plot=TRUE)
-# best.m <- mtry[mtry[, 2] == min(mtry[, 2]), 1]
-# 
-# 
-# fit2 <- randomForest(
-#   Moisture ~ R+G+RE+NIR+TimeOfDay,
-#   data=df2, mtry=best.m
-# )
-# 
-# print(fit2) # view results
-# plot(fit2)
+##can we predict grass type?
+df<-mutate(df,GrassType=GrassType-1) ##now tall is 0 and short is 1
+typefit <- glm(GrassType ~ PC1+PC2+PC3, data = df, family = "binomial")
+summary(typefit)
+with(typefit, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE))
+
+
+

@@ -109,13 +109,6 @@ make_df_complete<-function(imagery_data,field_data,texture_data){
       df[n,"SWIR_SD"]=imagery_data[n,"AM_SWIR_SD"]
       df[n,"Texture"]=texture_data[n,"texture_AM"]
       
-      ##could try using medians, not a big change
-      # df[n,"R_m"]=imagery_data[n,"AM_R_MED"]
-      # df[n,"G_m"]=imagery_data[n,"AM_G_MED"]
-      # df[n,"B_m"]=imagery_data[n,"AM_B_MED"]
-      # df[n,"RE_m"]=imagery_data[n,"AM_RE_MED"]
-      # df[n,"NIR_m"]=imagery_data[n,"AM_NIR_MED"]
-      # df[n,"SWIR_m"]=imagery_data[n,"AM_SWIR_MED"]
       
     }
     if (sample_period[n]==2){
@@ -135,12 +128,6 @@ make_df_complete<-function(imagery_data,field_data,texture_data){
       df[n,"SWIR_SD"]=imagery_data[n,"PM_SWIR_SD"]
       df[n,"Texture"]=texture_data[n,"texture_PM"]
       
-      # df[n,"R_m"]=imagery_data[n,"AM_R_MED"]
-      # df[n,"G_m"]=imagery_data[n,"AM_G_MED"]
-      # df[n,"B_m"]=imagery_data[n,"AM_B_MED"]
-      # df[n,"RE_m"]=imagery_data[n,"AM_RE_MED"]
-      # df[n,"NIR_m"]=imagery_data[n,"AM_NIR_MED"]
-      # df[n,"SWIR_m"]=imagery_data[n,"AM_SWIR_MED"]
     }
     if (n<61){
       df[n,"GrassType"]=1 #tall
@@ -150,7 +137,7 @@ make_df_complete<-function(imagery_data,field_data,texture_data){
     }
   }
   
-  ##one option for alternative reflectances is to transform them, need to scale for PCA
+  ##need to scale for PCA
   df[17:22] <-scale(df[,11:16])
   df[28] <-scale(df[,27])
   ##df[,17:22]<-decostand(x=df[,16:21], method="total", MARGIN=2, na.rm = FALSE)
