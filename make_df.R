@@ -1,4 +1,4 @@
-make_df_complete<-function(imagery_data,field_data,texture_data){
+make_df<-function(imagery_data,field_data,texture_data){
   ##need to make a df with the top, bottom, and live moisture and weight for each
   ##plot as well as the relevant imagery information, calculate time since flight,
   ##also location
@@ -40,8 +40,8 @@ make_df_complete<-function(imagery_data,field_data,texture_data){
   )
   
   ##turn field moisture into series of things with one entry/plot
+  ##rewrite this to not use for loops, it's ugly
   top_moisture=c()
-  top_transformed=c()
   bottom_moisture=c()
   live_moisture=c()
   sample_period=c()
@@ -64,7 +64,6 @@ make_df_complete<-function(imagery_data,field_data,texture_data){
     }
     if (field_data$Sample.Type[n]==1){
       top_moisture[as.numeric(field_data[n,1])]=field_data$Fuel.Moisture[n]
-      top_transformed[as.numeric(field_data[n,1])]=sqrt(field_data$Fuel.Moisture[n])
       top_weight[as.numeric(field_data[n,1])]=field_data$Dry.Gross.Weight[n]-field_data$Dry.Container.Weight[n]
       top_time_collected[as.numeric(field_data[n,1])]=field_data$Time.Collected[n]
     }
@@ -77,13 +76,13 @@ make_df_complete<-function(imagery_data,field_data,texture_data){
   
   
   
+  
   ##put field moisture and corresponding imagery data in dataframe
   ##time for AM flight was 939
   ##time for PM flight was 1506
   for (n in 1:120){
     df[n,"Index"]=n
     df[n,"MoistureTop"]=top_moisture[n]
-    df[n,"TopTransformed"]=top_transformed[n]
     df[n,"MoistureBottom"]=bottom_moisture[n]
     df[n,"MoistureLive"]=live_moisture[n]
     df[n,"WeightTop"]=top_weight[n]
